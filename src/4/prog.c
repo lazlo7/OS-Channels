@@ -7,7 +7,7 @@
 #include <unistd.h>
 
 // Buffer size to be used for cycling reading-writing.
-#define BUFFER_SIZE 32
+#define BUFFER_SIZE 8192
 
 // Helper TRY macro.
 // Assumes that the expr returns negative integer for errors.
