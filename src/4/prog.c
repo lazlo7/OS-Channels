@@ -147,7 +147,7 @@ void dataHandler(int input_fd_1, int input_fd_2, int output_fd_1, int output_fd_
     printf("[Handler] Passed results to output fds %d and %d\n", output_fd_1, output_fd_2);
 }
 
-// Writer: Reads a string from fd and dumps it into file_path
+// Writer: Reads a string from fd and dumps it into file_path.
 // Uses cyclic reading-writing to avoid buffer overflow.
 void writer(const char* file_path, int fd)
 {
