@@ -360,5 +360,9 @@ unhandled_data_fds_1_cleanup:
     close(unhandled_data_fds_1[0]);
     close(unhandled_data_fds_1[1]);
 
+    if (exit_code == 0) {
+        printf("Done!\n");
+    }
+
     return exit_code;
 }
