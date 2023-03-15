@@ -211,8 +211,6 @@ int main(int argc, char** argv)
     checkArgumentCount(argc < 4, "<output_file_1>");
     checkArgumentCount(argc < 5, "<output_file_1>");
 
-    int exit_code = 0;
-
     int unhandled_data_fds_1[2];
     if (pipe(unhandled_data_fds_1) < 0) {
         printf("[Error] Failed to create unhandled data pipe 1: %s\n", strerror(errno));
@@ -225,8 +223,9 @@ int main(int argc, char** argv)
     int unhandled_data_fds_2[2];
     if (pipe(unhandled_data_fds_2) < 0) {
         printf("[Error] Failed to create unhandled data pipe 2: %s\n", strerror(errno));
-        exit_code = 1;
-        goto unhandled_data_fds_1_cleanup;
+        close(unhandled_data_fds_1[0]);
+        close(unhandled_data_fds_1[1]);
+        return 1;
     }
 
     printf("[Pipe] Created (reader -> data handler) pipe 2: read: %d, write: %d\n",
@@ -238,14 +237,25 @@ int main(int argc, char** argv)
     int fork_result = fork();
     if (fork_result == -1) {
         printf("[Error] Failed to fork for reader process: %s\n", strerror(errno));
-        exit_code = 1;
-        goto unhandled_data_fds_2_cleanup;
+        close(unhandled_data_fds_1[0]);
+        close(unhandled_data_fds_2[0]);
+        close(unhandled_data_fds_1[1]);
+        close(unhandled_data_fds_2[1]);
+        return 1;
     }
 
     if (fork_result == 0) {
+        // Since fds are copied when forking, we need to manually close them.
+        close(unhandled_data_fds_1[0]);
+        close(unhandled_data_fds_2[0]);
+
         // In the child process -> read strings and pass them to data handler.
         reader(input_file_1, unhandled_data_fds_1[1]);
         reader(input_file_2, unhandled_data_fds_2[1]);
+
+        close(unhandled_data_fds_1[1]);
+        close(unhandled_data_fds_2[1]);
+
         return 0;
     }
 
@@ -253,8 +263,11 @@ int main(int argc, char** argv)
     int child_exit_status = 0;
     if (wait(&child_exit_status) == -1) {
         printf("[Error] Failed to wait for reader process to finish: %s\n", strerror(errno));
-        exit_code = 1;
-        goto unhandled_data_fds_2_cleanup;
+        close(unhandled_data_fds_1[0]);
+        close(unhandled_data_fds_2[0]);
+        close(unhandled_data_fds_1[1]);
+        close(unhandled_data_fds_2[1]);
+        return 1;
     }
 
     // We don't handle the situations when the process exits abnormally
@@ -262,15 +275,22 @@ int main(int argc, char** argv)
     // Such situations are not expected to happen.
     if (WEXITSTATUS(child_exit_status) != 0) {
         printf("[Error] Reader process returned with exit code %d, exiting...\n", WEXITSTATUS(child_exit_status));
-        exit_code = 1;
-        goto unhandled_data_fds_2_cleanup;
+        close(unhandled_data_fds_1[0]);
+        close(unhandled_data_fds_2[0]);
+        close(unhandled_data_fds_1[1]);
+        close(unhandled_data_fds_2[1]);
+        return 1;
     }
+
+    close(unhandled_data_fds_1[1]);
+    close(unhandled_data_fds_2[1]);
 
     int handled_data_fds_1[2];
     if (pipe(handled_data_fds_1) < 0) {
         printf("[Error] Failed to create handled data pipe 1: %s\n", strerror(errno));
-        exit_code = 1;
-        goto unhandled_data_fds_2_cleanup;
+        close(unhandled_data_fds_1[0]);
+        close(unhandled_data_fds_2[0]);
+        return 1;
     }
 
     printf("[Pipe] Created (data handler -> writer) pipe 1: read: %d, write: %d\n",
@@ -279,8 +299,11 @@ int main(int argc, char** argv)
     int handled_data_fds_2[2];
     if (pipe(handled_data_fds_2) < 0) {
         printf("[Error] Failed to create handled data pipe 2: %s\n", strerror(errno));
-        exit_code = 1;
-        goto handled_data_fds_1_cleanup;
+        close(unhandled_data_fds_1[0]);
+        close(unhandled_data_fds_2[0]);
+        close(handled_data_fds_1[0]);
+        close(handled_data_fds_1[1]);
+        return 1;
     }
 
     printf("[Pipe] Created (data handler -> writer) pipe 2: read: %d, write: %d\n",
@@ -289,29 +312,58 @@ int main(int argc, char** argv)
     fork_result = fork();
     if (fork_result == -1) {
         printf("[Error] Failed to fork for data handler process: %s\n", strerror(errno));
-        exit_code = 1;
-        goto handled_data_fds_2_cleanup;
+        close(unhandled_data_fds_1[0]);
+        close(unhandled_data_fds_2[0]);
+        close(handled_data_fds_1[0]);
+        close(handled_data_fds_1[1]);
+        close(handled_data_fds_2[0]);
+        close(handled_data_fds_2[1]);
+        return 1;
     }
 
     if (fork_result == 0) {
+        close(handled_data_fds_1[0]);
+        close(handled_data_fds_2[0]);
+
         // In the child process -> handle data and pass the results to writer.
         dataHandler(unhandled_data_fds_1[0], unhandled_data_fds_2[0],
             handled_data_fds_1[1], handled_data_fds_2[1]);
+
+        close(unhandled_data_fds_1[0]);
+        close(unhandled_data_fds_2[0]);
+        close(handled_data_fds_1[1]);
+        close(handled_data_fds_2[1]);
+
         return 0;
     }
 
     // Wait until the data handler process is done.
     if (wait(&child_exit_status) == -1) {
         printf("[Error] Failed to wait for data handler process to finish: %s\n", strerror(errno));
-        exit_code = 1;
-        goto handled_data_fds_2_cleanup;
+        close(unhandled_data_fds_1[0]);
+        close(unhandled_data_fds_2[0]);
+        close(handled_data_fds_1[0]);
+        close(handled_data_fds_1[1]);
+        close(handled_data_fds_2[0]);
+        close(handled_data_fds_2[1]);
+        return 1;
     }
 
     if (WEXITSTATUS(child_exit_status) != 0) {
         printf("[Error] Data handler process returned with exit code %d, exiting...\n", WEXITSTATUS(child_exit_status));
-        exit_code = 1;
-        goto handled_data_fds_2_cleanup;
+        close(unhandled_data_fds_1[0]);
+        close(unhandled_data_fds_2[0]);
+        close(handled_data_fds_1[0]);
+        close(handled_data_fds_1[1]);
+        close(handled_data_fds_2[0]);
+        close(handled_data_fds_2[1]);
+        return 1;
     }
+
+    close(unhandled_data_fds_1[0]);
+    close(unhandled_data_fds_2[0]);
+    close(handled_data_fds_1[1]);
+    close(handled_data_fds_2[1]);
 
     const char* output_file_1 = argv[3];
     const char* output_file_2 = argv[4];
@@ -319,50 +371,40 @@ int main(int argc, char** argv)
     fork_result = fork();
     if (fork_result == -1) {
         printf("[Error] Failed to fork for writer process: %s\n", strerror(errno));
-        exit_code = 1;
-        goto handled_data_fds_2_cleanup;
+        close(handled_data_fds_1[0]);
+        close(handled_data_fds_2[0]);
     }
 
     if (fork_result == 0) {
         // In the child process -> read results and write them to the files.
         writer(output_file_1, handled_data_fds_1[0]);
         writer(output_file_2, handled_data_fds_2[0]);
+
+        close(handled_data_fds_1[0]);
+        close(handled_data_fds_2[0]);
+
         return 0;
     }
 
     // Wait until the writer process is done.
     if (wait(&child_exit_status) == -1) {
         printf("[Error] Failed to wait for writer process to finish: %s\n", strerror(errno));
-        exit_code = 1;
-        goto handled_data_fds_2_cleanup;
+        close(handled_data_fds_1[0]);
+        close(handled_data_fds_2[0]);
+        return 1;
     }
 
     if (WEXITSTATUS(child_exit_status) != 0) {
         printf("[Error] Writer process returned with exit code %d, exiting...\n", WEXITSTATUS(child_exit_status));
-        exit_code = 1;
-        goto handled_data_fds_2_cleanup;
+        close(handled_data_fds_1[0]);
+        close(handled_data_fds_2[0]);
+        return 1;
     }
 
-    // Closing all fds.
-handled_data_fds_2_cleanup:
     close(handled_data_fds_1[0]);
-    close(handled_data_fds_1[1]);
-
-handled_data_fds_1_cleanup:
     close(handled_data_fds_2[0]);
-    close(handled_data_fds_2[1]);
 
-unhandled_data_fds_2_cleanup:
-    close(unhandled_data_fds_2[0]);
-    close(unhandled_data_fds_2[1]);
+    printf("Done!\n");
 
-unhandled_data_fds_1_cleanup:
-    close(unhandled_data_fds_1[0]);
-    close(unhandled_data_fds_1[1]);
-
-    if (exit_code == 0) {
-        printf("Done!\n");
-    }
-
-    return exit_code;
+    return 0;
 }
