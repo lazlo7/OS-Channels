@@ -204,6 +204,15 @@ void checkArgumentCount(bool arg_condition, const char* arg_name)
     }
 }
 
+// Helper function that closes a file descriptor and sets it to -1 only if it's not equal to -1.
+static void closeFile(int* fd)
+{
+    if (*fd != -1) {
+        close(*fd);
+        *fd = -1;
+    }
+}
+
 int main(int argc, char** argv)
 {
     checkArgumentCount(argc < 2, "<input_file_1>");
@@ -211,7 +220,12 @@ int main(int argc, char** argv)
     checkArgumentCount(argc < 4, "<output_file_1>");
     checkArgumentCount(argc < 5, "<output_file_1>");
 
-    int unhandled_data_fds_1[2];
+    int exit_code = 0;
+    int unhandled_data_fds_1[2] = { -1, -1 };
+    int unhandled_data_fds_2[2] = { -1, -1 };
+    int handled_data_fds_1[2] = { -1, -1 };
+    int handled_data_fds_2[2] = { -1, -1 };
+
     if (pipe(unhandled_data_fds_1) < 0) {
         printf("[Error] Failed to create unhandled data pipe 1: %s\n", strerror(errno));
         return 1;
@@ -220,12 +234,10 @@ int main(int argc, char** argv)
     printf("[Pipe] Created (reader -> data handler) pipe 1: read: %d, write: %d\n",
         unhandled_data_fds_1[0], unhandled_data_fds_1[1]);
 
-    int unhandled_data_fds_2[2];
     if (pipe(unhandled_data_fds_2) < 0) {
         printf("[Error] Failed to create unhandled data pipe 2: %s\n", strerror(errno));
-        close(unhandled_data_fds_1[0]);
-        close(unhandled_data_fds_1[1]);
-        return 1;
+        exit_code = 1;
+        goto cleanup;
     }
 
     printf("[Pipe] Created (reader -> data handler) pipe 2: read: %d, write: %d\n",
@@ -237,11 +249,8 @@ int main(int argc, char** argv)
     int fork_result = fork();
     if (fork_result == -1) {
         printf("[Error] Failed to fork for reader process: %s\n", strerror(errno));
-        close(unhandled_data_fds_1[0]);
-        close(unhandled_data_fds_2[0]);
-        close(unhandled_data_fds_1[1]);
-        close(unhandled_data_fds_2[1]);
-        return 1;
+        exit_code = 1;
+        goto cleanup;
     }
 
     if (fork_result == 0) {
@@ -263,11 +272,8 @@ int main(int argc, char** argv)
     int child_exit_status = 0;
     if (wait(&child_exit_status) == -1) {
         printf("[Error] Failed to wait for reader process to finish: %s\n", strerror(errno));
-        close(unhandled_data_fds_1[0]);
-        close(unhandled_data_fds_2[0]);
-        close(unhandled_data_fds_1[1]);
-        close(unhandled_data_fds_2[1]);
-        return 1;
+        exit_code = 1;
+        goto cleanup;
     }
 
     // We don't handle the situations when the process exits abnormally
@@ -275,35 +281,26 @@ int main(int argc, char** argv)
     // Such situations are not expected to happen.
     if (WEXITSTATUS(child_exit_status) != 0) {
         printf("[Error] Reader process returned with exit code %d, exiting...\n", WEXITSTATUS(child_exit_status));
-        close(unhandled_data_fds_1[0]);
-        close(unhandled_data_fds_2[0]);
-        close(unhandled_data_fds_1[1]);
-        close(unhandled_data_fds_2[1]);
-        return 1;
+        exit_code = 1;
+        goto cleanup;
     }
 
-    close(unhandled_data_fds_1[1]);
-    close(unhandled_data_fds_2[1]);
+    closeFile(&unhandled_data_fds_1[1]);
+    closeFile(&unhandled_data_fds_2[1]);
 
-    int handled_data_fds_1[2];
     if (pipe(handled_data_fds_1) < 0) {
         printf("[Error] Failed to create handled data pipe 1: %s\n", strerror(errno));
-        close(unhandled_data_fds_1[0]);
-        close(unhandled_data_fds_2[0]);
-        return 1;
+        exit_code = 1;
+        goto cleanup;
     }
 
     printf("[Pipe] Created (data handler -> writer) pipe 1: read: %d, write: %d\n",
         handled_data_fds_1[0], handled_data_fds_1[1]);
 
-    int handled_data_fds_2[2];
     if (pipe(handled_data_fds_2) < 0) {
         printf("[Error] Failed to create handled data pipe 2: %s\n", strerror(errno));
-        close(unhandled_data_fds_1[0]);
-        close(unhandled_data_fds_2[0]);
-        close(handled_data_fds_1[0]);
-        close(handled_data_fds_1[1]);
-        return 1;
+        exit_code = 1;
+        goto cleanup;
     }
 
     printf("[Pipe] Created (data handler -> writer) pipe 2: read: %d, write: %d\n",
@@ -312,13 +309,8 @@ int main(int argc, char** argv)
     fork_result = fork();
     if (fork_result == -1) {
         printf("[Error] Failed to fork for data handler process: %s\n", strerror(errno));
-        close(unhandled_data_fds_1[0]);
-        close(unhandled_data_fds_2[0]);
-        close(handled_data_fds_1[0]);
-        close(handled_data_fds_1[1]);
-        close(handled_data_fds_2[0]);
-        close(handled_data_fds_2[1]);
-        return 1;
+        exit_code = 1;
+        goto cleanup;
     }
 
     if (fork_result == 0) {
@@ -340,30 +332,20 @@ int main(int argc, char** argv)
     // Wait until the data handler process is done.
     if (wait(&child_exit_status) == -1) {
         printf("[Error] Failed to wait for data handler process to finish: %s\n", strerror(errno));
-        close(unhandled_data_fds_1[0]);
-        close(unhandled_data_fds_2[0]);
-        close(handled_data_fds_1[0]);
-        close(handled_data_fds_1[1]);
-        close(handled_data_fds_2[0]);
-        close(handled_data_fds_2[1]);
-        return 1;
+        exit_code = 1;
+        goto cleanup;
     }
 
     if (WEXITSTATUS(child_exit_status) != 0) {
         printf("[Error] Data handler process returned with exit code %d, exiting...\n", WEXITSTATUS(child_exit_status));
-        close(unhandled_data_fds_1[0]);
-        close(unhandled_data_fds_2[0]);
-        close(handled_data_fds_1[0]);
-        close(handled_data_fds_1[1]);
-        close(handled_data_fds_2[0]);
-        close(handled_data_fds_2[1]);
-        return 1;
+        exit_code = 1;
+        goto cleanup;
     }
 
-    close(unhandled_data_fds_1[0]);
-    close(unhandled_data_fds_2[0]);
-    close(handled_data_fds_1[1]);
-    close(handled_data_fds_2[1]);
+    closeFile(&unhandled_data_fds_1[0]);
+    closeFile(&unhandled_data_fds_2[0]);
+    closeFile(&handled_data_fds_1[1]);
+    closeFile(&handled_data_fds_2[1]);
 
     const char* output_file_1 = argv[3];
     const char* output_file_2 = argv[4];
@@ -371,8 +353,8 @@ int main(int argc, char** argv)
     fork_result = fork();
     if (fork_result == -1) {
         printf("[Error] Failed to fork for writer process: %s\n", strerror(errno));
-        close(handled_data_fds_1[0]);
-        close(handled_data_fds_2[0]);
+        exit_code = 1;
+        goto cleanup;
     }
 
     if (fork_result == 0) {
@@ -389,22 +371,29 @@ int main(int argc, char** argv)
     // Wait until the writer process is done.
     if (wait(&child_exit_status) == -1) {
         printf("[Error] Failed to wait for writer process to finish: %s\n", strerror(errno));
-        close(handled_data_fds_1[0]);
-        close(handled_data_fds_2[0]);
-        return 1;
+        exit_code = 1;
+        goto cleanup;
     }
 
     if (WEXITSTATUS(child_exit_status) != 0) {
         printf("[Error] Writer process returned with exit code %d, exiting...\n", WEXITSTATUS(child_exit_status));
-        close(handled_data_fds_1[0]);
-        close(handled_data_fds_2[0]);
-        return 1;
+        exit_code = 1;
+        goto cleanup;
     }
 
-    close(handled_data_fds_1[0]);
-    close(handled_data_fds_2[0]);
+cleanup:
+    closeFile(&unhandled_data_fds_1[0]);
+    closeFile(&unhandled_data_fds_1[1]);
+    closeFile(&unhandled_data_fds_2[0]);
+    closeFile(&unhandled_data_fds_2[1]);
+    closeFile(&handled_data_fds_1[0]);
+    closeFile(&handled_data_fds_1[1]);
+    closeFile(&handled_data_fds_2[0]);
+    closeFile(&handled_data_fds_2[1]);
 
-    printf("Done!\n");
+    if (exit_code == 0) {
+        printf("Done!\n");
+    }
 
-    return 0;
+    return exit_code;
 }
