@@ -153,7 +153,7 @@ void writer(const char* file_path, int fd)
 {
     printf("[Writer] Started with file '%s'\n", file_path);
 
-    const int output_fd = open(file_path, O_WRONLY);
+    const int output_fd = open(file_path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
     if (fd == -1) {
         printf("[Writer Error] Failed to open file '%s': %s\n", file_path, strerror(errno));
         exit(1);
