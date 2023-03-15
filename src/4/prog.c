@@ -244,8 +244,18 @@ int main(int argc, char** argv)
     }
 
     // Wait until the reader process is done.
-    if (wait(NULL) == -1) {
+    int child_exit_status = 0;
+    if (wait(&child_exit_status) == -1) {
         printf("[Error] Failed to wait for reader process to finish: %s\n", strerror(errno));
+        exit_code = 1;
+        goto unhandled_data_fds_2_cleanup;
+    }
+
+    // We don't handle the situations when the process exits abnormally
+    // (i. e. sig killed, segfault, etc.).
+    // Such situations are not expected to happen.
+    if (WEXITSTATUS(child_exit_status) != 0) {
+        printf("[Error] Reader process returned with exit code %d, exiting...\n", WEXITSTATUS(child_exit_status));
         exit_code = 1;
         goto unhandled_data_fds_2_cleanup;
     }
@@ -279,8 +289,14 @@ int main(int argc, char** argv)
     }
 
     // Wait until the data handler process is done.
-    if (wait(NULL) == -1) {
+    if (wait(&child_exit_status) == -1) {
         printf("[Error] Failed to wait for data handler process to finish: %s\n", strerror(errno));
+        exit_code = 1;
+        goto handled_data_fds_2_cleanup;
+    }
+
+    if (WEXITSTATUS(child_exit_status) != 0) {
+        printf("[Error] Data handler process returned with exit code %d, exiting...\n", WEXITSTATUS(child_exit_status));
         exit_code = 1;
         goto handled_data_fds_2_cleanup;
     }
@@ -303,8 +319,14 @@ int main(int argc, char** argv)
     }
 
     // Wait until the writer process is done.
-    if (wait(NULL) == -1) {
+    if (wait(&child_exit_status) == -1) {
         printf("[Error] Failed to wait for writer process to finish: %s\n", strerror(errno));
+        exit_code = 1;
+        goto handled_data_fds_2_cleanup;
+    }
+
+    if (WEXITSTATUS(child_exit_status) != 0) {
+        printf("[Error] Writer process returned with exit code %d, exiting...\n", WEXITSTATUS(child_exit_status));
         exit_code = 1;
         goto handled_data_fds_2_cleanup;
     }
