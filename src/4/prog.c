@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 // Buffer size to be used for cycling reading-writing.
@@ -224,6 +225,12 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    // Wait until the reader process is done.
+    if (wait(NULL) == -1) {
+        printf("[Error] Failed to wait for reader process to finish: %s\n", strerror(errno));
+        return 1;
+    }
+
     int handled_data_fds_1[2];
     if (pipe(handled_data_fds_1) < 0) {
         printf("[Error] Failed to create handled data pipe 1: %s\n", strerror(errno));
@@ -248,6 +255,12 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    // Wait until the data handler process is done.
+    if (wait(NULL) == -1) {
+        printf("[Error] Failed to wait for data handler process to finish: %s\n", strerror(errno));
+        return 1;
+    }
+
     const char* output_file_1 = argv[3];
     const char* output_file_2 = argv[4];
 
@@ -262,6 +275,12 @@ int main(int argc, char** argv)
         writer(output_file_1, handled_data_fds_1[0]);
         writer(output_file_2, handled_data_fds_2[0]);
         return 0;
+    }
+
+    // Wait until the writer process is done.
+    if (wait(NULL) == -1) {
+        printf("[Error] Failed to wait for writer process to finish: %s\n", strerror(errno));
+        return 1;
     }
 
     // Closing all fds.
