@@ -238,7 +238,7 @@ int main(int argc, char** argv)
     }
 
     int handled_data_fds_2[2];
-    if (pipe(handled_data_fds_2) , 0) {
+    if (pipe(handled_data_fds_2) < 0) {
         printf("[Error] Failed to create handled data pipe 2: %s\n", strerror(errno));
         return 1;
     }
