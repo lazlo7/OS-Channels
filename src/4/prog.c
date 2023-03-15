@@ -219,12 +219,18 @@ int main(int argc, char** argv)
         return 1;
     }
 
+    printf("[Pipe] Created (reader -> data handler) pipe 1: read: %d, write: %d\n",
+        unhandled_data_fds_1[0], unhandled_data_fds_1[1]);
+
     int unhandled_data_fds_2[2];
     if (pipe(unhandled_data_fds_2) < 0) {
         printf("[Error] Failed to create unhandled data pipe 2: %s\n", strerror(errno));
         exit_code = 1;
         goto unhandled_data_fds_1_cleanup;
     }
+
+    printf("[Pipe] Created (reader -> data handler) pipe 2: read: %d, write: %d\n",
+        unhandled_data_fds_2[0], unhandled_data_fds_2[1]);
 
     const char* input_file_1 = argv[1];
     const char* input_file_2 = argv[2];
@@ -267,12 +273,18 @@ int main(int argc, char** argv)
         goto unhandled_data_fds_2_cleanup;
     }
 
+    printf("[Pipe] Created (data handler -> writer) pipe 1: read: %d, write: %d\n",
+        handled_data_fds_1[0], handled_data_fds_1[1]);
+
     int handled_data_fds_2[2];
     if (pipe(handled_data_fds_2) < 0) {
         printf("[Error] Failed to create handled data pipe 2: %s\n", strerror(errno));
         exit_code = 1;
         goto handled_data_fds_1_cleanup;
     }
+
+    printf("[Pipe] Created (data handler -> writer) pipe 2: read: %d, write: %d\n",
+        handled_data_fds_2[0], handled_data_fds_2[1]);
 
     fork_result = fork();
     if (fork_result == -1) {
