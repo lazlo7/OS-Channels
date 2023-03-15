@@ -13,8 +13,7 @@
 // Reader: Reads a string from file_path and dumps it into fd.
 // Uses cyclic reading-writing to avoid buffer overflow.
 void reader(const char* file_path, int fd)
-{   
-    int exit_value = 0;
+{
     printf("[Reader] Started with file '%s'\n", file_path);
 
     const int input_fd = open(file_path, O_RDONLY);
@@ -22,6 +21,8 @@ void reader(const char* file_path, int fd)
         printf("[Reader Error] Failed to open file '%s': %s\n", file_path, strerror(errno));
         exit(1);
     }
+
+    int exit_code = 0;
 
     static char buffer[BUFFER_SIZE];
 
@@ -33,19 +34,29 @@ void reader(const char* file_path, int fd)
         if (read_bytes == -1) {
             printf("[Reader Error] Failed to read another chunk of file '%s': %s\n",
                 file_path, strerror(errno));
-            exit(1);
+            exit_code = 1;
+            goto cleanup;
         }
 
         if (write(fd, buffer, read_bytes) < 0) {
             printf("[Reader Error] Failed to write another chunk of file '%s' to pipe: '%s'\n", file_path, strerror(errno));
-            exit(1);
+            exit_code = 1;
+            goto cleanup;
         }
 
         written_bytes += read_bytes;
     } while (read_bytes == BUFFER_SIZE);
 
+cleanup:
     // Close no longer needed input_fd.
-    close(input_fd);
+    if (close(input_fd) < 0) {
+        printf("[Reader Error] Failed to close input file '%s': %s\n", file_path, strerror(errno));
+        exit(1);
+    }
+
+    if (exit_code != 0) {
+        exit(exit_code);
+    }
 
     printf("[Reader] Passed a string of length %zu from file '%s' to fd %d\n",
         written_bytes, file_path, fd);
@@ -150,6 +161,8 @@ void writer(const char* file_path, int fd)
         exit(1);
     }
 
+    int exit_code = 0;
+
     static char buffer[BUFFER_SIZE];
     ssize_t read_bytes = 0;
 
@@ -157,17 +170,27 @@ void writer(const char* file_path, int fd)
         read_bytes = read(fd, buffer, BUFFER_SIZE);
         if (read_bytes == -1) {
             printf("[Writer Error] Failed to read another chunk of file '%s': %s\n", file_path, strerror(errno));
-            exit(1);
+            exit_code = 1;
+            goto cleanup;
         }
 
         if (write(output_fd, buffer, read_bytes) < 0) {
             printf("[Writer Error] Failed to write result to file '%s': %s\n", file_path, strerror(errno));
-            exit(1);
+            exit_code = 1;
+            goto cleanup;
         }
     } while (read_bytes == BUFFER_SIZE);
 
+cleanup:
     // Close no longer needed output_fd
-    close(output_fd);
+    if (close(output_fd) < 0) {
+        printf("[Reader Error] Failed to close output file '%s': %s\n", file_path, strerror(errno));
+        exit(1);
+    }
+
+    if (exit_code != 0) {
+        exit(exit_code);
+    }
 
     printf("[Writer] Passed result to file '%s' from input fd %d\n", file_path, fd);
 }
@@ -188,6 +211,8 @@ int main(int argc, char** argv)
     checkArgumentCount(argc < 4, "<output_file_1>");
     checkArgumentCount(argc < 5, "<output_file_1>");
 
+    int exit_code = 0;
+
     int unhandled_data_fds_1[2];
     if (pipe(unhandled_data_fds_1) < 0) {
         printf("[Error] Failed to create unhandled data pipe 1: %s\n", strerror(errno));
@@ -197,7 +222,8 @@ int main(int argc, char** argv)
     int unhandled_data_fds_2[2];
     if (pipe(unhandled_data_fds_2) < 0) {
         printf("[Error] Failed to create unhandled data pipe 2: %s\n", strerror(errno));
-        return 1;
+        exit_code = 1;
+        goto unhandled_data_fds_1_cleanup;
     }
 
     const char* input_file_1 = argv[1];
@@ -206,7 +232,8 @@ int main(int argc, char** argv)
     int fork_result = fork();
     if (fork_result == -1) {
         printf("[Error] Failed to fork for reader process: %s\n", strerror(errno));
-        return 1;
+        exit_code = 1;
+        goto unhandled_data_fds_2_cleanup;
     }
 
     if (fork_result == 0) {
@@ -219,37 +246,43 @@ int main(int argc, char** argv)
     // Wait until the reader process is done.
     if (wait(NULL) == -1) {
         printf("[Error] Failed to wait for reader process to finish: %s\n", strerror(errno));
-        return 1;
+        exit_code = 1;
+        goto unhandled_data_fds_2_cleanup;
     }
 
     int handled_data_fds_1[2];
     if (pipe(handled_data_fds_1) < 0) {
         printf("[Error] Failed to create handled data pipe 1: %s\n", strerror(errno));
-        return 1;
+        exit_code = 1;
+        goto unhandled_data_fds_2_cleanup;
     }
 
     int handled_data_fds_2[2];
     if (pipe(handled_data_fds_2) < 0) {
         printf("[Error] Failed to create handled data pipe 2: %s\n", strerror(errno));
-        return 1;
+        exit_code = 1;
+        goto handled_data_fds_1_cleanup;
     }
 
     fork_result = fork();
     if (fork_result == -1) {
         printf("[Error] Failed to fork for data handler process: %s\n", strerror(errno));
-        return 1;
+        exit_code = 1;
+        goto handled_data_fds_2_cleanup;
     }
 
     if (fork_result == 0) {
         // In the child process -> handle data and pass the results to writer.
-        dataHandler(unhandled_data_fds_1[0], unhandled_data_fds_2[0], handled_data_fds_1[1], handled_data_fds_2[1]);
+        dataHandler(unhandled_data_fds_1[0], unhandled_data_fds_2[0],
+            handled_data_fds_1[1], handled_data_fds_2[1]);
         return 0;
     }
 
     // Wait until the data handler process is done.
     if (wait(NULL) == -1) {
         printf("[Error] Failed to wait for data handler process to finish: %s\n", strerror(errno));
-        return 1;
+        exit_code = 1;
+        goto handled_data_fds_2_cleanup;
     }
 
     const char* output_file_1 = argv[3];
@@ -258,7 +291,8 @@ int main(int argc, char** argv)
     fork_result = fork();
     if (fork_result == -1) {
         printf("[Error] Failed to fork for writer process: %s\n", strerror(errno));
-        return 1;
+        exit_code = 1;
+        goto handled_data_fds_2_cleanup;
     }
 
     if (fork_result == 0) {
@@ -271,18 +305,26 @@ int main(int argc, char** argv)
     // Wait until the writer process is done.
     if (wait(NULL) == -1) {
         printf("[Error] Failed to wait for writer process to finish: %s\n", strerror(errno));
-        return 1;
+        exit_code = 1;
+        goto handled_data_fds_2_cleanup;
     }
 
     // Closing all fds.
-    close(unhandled_data_fds_1[0]);
-    close(unhandled_data_fds_1[1]);
-    close(unhandled_data_fds_2[0]);
-    close(unhandled_data_fds_2[1]);
+handled_data_fds_2_cleanup:
     close(handled_data_fds_1[0]);
     close(handled_data_fds_1[1]);
+
+handled_data_fds_1_cleanup:
     close(handled_data_fds_2[0]);
     close(handled_data_fds_2[1]);
 
-    return 0;
+unhandled_data_fds_2_cleanup:
+    close(unhandled_data_fds_2[0]);
+    close(unhandled_data_fds_2[1]);
+
+unhandled_data_fds_1_cleanup:
+    close(unhandled_data_fds_1[0]);
+    close(unhandled_data_fds_1[1]);
+
+    return exit_code;
 }
