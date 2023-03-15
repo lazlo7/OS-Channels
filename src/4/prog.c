@@ -169,7 +169,7 @@ void writer(const char* file_path, int fd)
     do {
         read_bytes = read(fd, buffer, BUFFER_SIZE);
         if (read_bytes == -1) {
-            printf("[Writer Error] Failed to read another chunk of file '%s': %s\n", file_path, strerror(errno));
+            printf("[Writer Error] Failed to read another chunk from fd %d: %s\n", fd, strerror(errno));
             exit_code = 1;
             goto cleanup;
         }
