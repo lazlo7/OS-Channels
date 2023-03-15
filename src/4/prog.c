@@ -68,11 +68,11 @@ void updateStringDifference(
     bool* result)
 {
     for (size_t i = 0; i < including_length; ++i) {
-        result[including[i]] = true;
+        result[(unsigned char)including[i]] = true;
     }
 
     for (size_t i = 0; i < excluding_length; ++i) {
-        result[excluding[i]] = false;
+        result[(unsigned char)excluding[i]] = false;
     }
 }
 
