@@ -10,20 +10,11 @@
 // Buffer size to be used for cycling reading-writing.
 #define BUFFER_SIZE 8192
 
-// Helper TRY macro.
-// Assumes that the expr returns negative integer for errors.
-#define TRY(expr, error_format, ...)           \
-    do {                                       \
-        if (expr < 0) {                        \
-            printf(error_format, __VA_ARGS__); \
-            exit(1);                           \
-        }                                      \
-    } while (0)
-
 // Reader: Reads a string from file_path and dumps it into fd.
 // Uses cyclic reading-writing to avoid buffer overflow.
 void reader(const char* file_path, int fd)
-{
+{   
+    int exit_value = 0;
     printf("[Reader] Started with file '%s'\n", file_path);
 
     const int input_fd = open(file_path, O_RDONLY);
