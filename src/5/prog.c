@@ -1,25 +1,26 @@
+#include <asm-generic/errno-base.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
 // Buffer size to be used for cycling reading-writing.
 #define BUFFER_SIZE 8192
 
-// Reader: Reads a string from file_path and dumps it into fd.
-// Uses cyclic reading-writing to avoid buffer overflow.
-void reader(const char* file_path, int fd)
+int readString(const char* file_path, int fd)
 {
     printf("[Reader] Started with file '%s'\n", file_path);
 
     const int input_fd = open(file_path, O_RDONLY);
     if (input_fd == -1) {
         printf("[Reader Error] Failed to open file '%s': %s\n", file_path, strerror(errno));
-        exit(1);
+        return 1;
     }
 
     int exit_code = 0;
@@ -51,15 +52,55 @@ cleanup:
     // Close no longer needed input_fd.
     if (close(input_fd) < 0) {
         printf("[Reader Error] Failed to close input file '%s': %s\n", file_path, strerror(errno));
-        exit(1);
+        return 1;
     }
 
-    if (exit_code != 0) {
-        exit(exit_code);
+    if (exit_code == 0) {
+        printf("[Reader] Passed a string of length %zu from file '%s' to fd %d\n",
+            written_bytes, file_path, fd);
     }
 
-    printf("[Reader] Passed a string of length %zu from file '%s' to fd %d\n",
-        written_bytes, file_path, fd);
+    return exit_code;
+}
+
+// Reader: Reads strings from input_file_1 and input_file_2 and passes them
+// to unhandled_data_pipe_name_1 and unhandled_data_pipe_name_2 respectively.
+// Uses cyclic reading-writing to avoid buffer overflow.
+int reader(
+    const char* input_file_1, const char* input_file_2,
+    const char* unhandled_data_pipe_name_1, const char* unhandled_data_pipe_name_2)
+{
+    int write_fd_1;
+    if ((write_fd_1 = open(unhandled_data_pipe_name_1, O_WRONLY)) < 0) {
+        printf("[Reader Error] Failed to open pipe '%s': %s\n",
+            unhandled_data_pipe_name_1, strerror(errno));
+        return 1;
+    }
+
+    printf("[Reader] Opened (reader -> data handler) pipe '%s' with fd: %d\n",
+        unhandled_data_pipe_name_1, write_fd_1);
+    int exit_code = 0;
+
+    int write_fd_2;
+    if ((write_fd_2 = open(unhandled_data_pipe_name_2, O_WRONLY)) < 0) {
+        printf("[Reader Error] Failed to open pipe '%s': %s\n",
+            unhandled_data_pipe_name_2, strerror(errno));
+        exit_code = 1;
+        goto cleanup;
+    }
+
+    printf("[Reader] Opened (reader -> data handler) pipe '%s' with fd: %d\n",
+        unhandled_data_pipe_name_1, write_fd_2);
+
+    // In the child process -> read strings and pass them to data handler.
+    exit_code = readString(input_file_1, write_fd_1) || readString(input_file_2, write_fd_2);
+
+    close(write_fd_2);
+
+cleanup:
+    close(write_fd_1);
+
+    return exit_code;
 }
 
 typedef enum {
@@ -86,10 +127,7 @@ void updateStringDifference(
     }
 }
 
-// Data Handler: Computes string difference from input_fd_1 and input_fd_2
-// and dumps the result into output_fd_1 and output_fd_2.
-// Uses cyclic reading to avoid buffer overflow.
-void dataHandler(int input_fd_1, int input_fd_2, int output_fd_1, int output_fd_2)
+int handleStrings(int input_fd_1, int input_fd_2, int output_fd_1, int output_fd_2)
 {
     printf("[Handler] Started with input fds %d and %d\n", input_fd_1, input_fd_2);
 
@@ -112,13 +150,13 @@ void dataHandler(int input_fd_1, int input_fd_2, int output_fd_1, int output_fd_
         read_result_1 = read(input_fd_1, buffer_1, BUFFER_SIZE);
         if (read_result_1 == -1) {
             printf("[Handler Error] Failed to read another chunk from pipe 1: %s\n", strerror(errno));
-            exit(1);
+            return 1;
         }
 
         read_result_2 = read(input_fd_2, buffer_2, BUFFER_SIZE);
         if (read_result_2 == -1) {
             printf("[Handler Error] Failed to read another chunk from pipe 2: %s\n", strerror(errno));
-            exit(1);
+            return 1;
         }
 
         updateStringDifference(buffer_1, read_result_1, buffer_2, read_result_2, string_difference_1);
@@ -146,27 +184,65 @@ void dataHandler(int input_fd_1, int input_fd_2, int output_fd_1, int output_fd_
     // Writing results.
     if (write(output_fd_1, result_1, result_1_length) < 0) {
         printf("[Handler Error] Failed to write result to pipe 1: %s\n", strerror(errno));
-        exit(1);
+        return 1;
     }
 
     if (write(output_fd_2, result_2, result_2_length) < 0) {
         printf("[Handler Error] Failed to write result to pipe 2: %s\n", strerror(errno));
-        exit(1);
+        return 1;
     }
 
     printf("[Handler] Passed results to output fds %d and %d\n", output_fd_1, output_fd_2);
+    return 0;
 }
 
-// Writer: Reads a string from fd and dumps it into file_path.
-// Uses cyclic reading-writing to avoid buffer overflow.
-void writer(const char* file_path, int fd)
+// Data Handler: Computes string difference between input_fd_1 and input_fd_2
+// and dumps the result into output_fd_1 and output_fd_2.
+// Uses cyclic reading to avoid buffer overflow.
+int dataHandler(
+    int input_fd_1, int input_fd_2,
+    const char* handled_data_pipe_name_1, const char* handled_data_pipe_name_2)
+{
+    int output_fd_1;
+    if ((output_fd_1 = open(handled_data_pipe_name_1, O_WRONLY)) < 0) {
+        printf("[Data Handler Error] Failed to open pipe '%s': %s\n",
+            handled_data_pipe_name_1, strerror(errno));
+        return 1;
+    }
+
+    printf("[Data Handler] Opened (data handler -> writer) pipe '%s' with fd: %d\n",
+        handled_data_pipe_name_1, output_fd_1);
+    int exit_code = 0;
+
+    int output_fd_2;
+    if ((output_fd_2 = open(handled_data_pipe_name_2, O_WRONLY)) < 0) {
+        printf("[Data Handler Error] Failed to open pipe '%s': %s\n",
+            handled_data_pipe_name_2, strerror(errno));
+        exit_code = 1;
+        goto cleanup;
+    }
+
+    printf("[Data Handler] Opened (data handler -> writer) pipe '%s' with fd: %d\n",
+        handled_data_pipe_name_1, output_fd_2);
+
+    exit_code = handleStrings(input_fd_1, input_fd_2, output_fd_1, output_fd_2);
+
+    close(output_fd_2);
+
+cleanup:
+    close(output_fd_1);
+
+    return exit_code;
+}
+
+int writeString(const char* file_path, int fd)
 {
     printf("[Writer] Started with file '%s'\n", file_path);
 
     const int output_fd = open(file_path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
     if (output_fd == -1) {
         printf("[Writer Error] Failed to open file '%s': %s\n", file_path, strerror(errno));
-        exit(1);
+        return 1;
     }
 
     int exit_code = 0;
@@ -193,14 +269,14 @@ cleanup:
     // Close no longer needed output_fd
     if (close(output_fd) < 0) {
         printf("[Reader Error] Failed to close output file '%s': %s\n", file_path, strerror(errno));
-        exit(1);
+        return 1;
     }
 
-    if (exit_code != 0) {
-        exit(exit_code);
+    if (exit_code == 0) {
+        printf("[Writer] Passed result to file '%s' from input fd %d\n", file_path, fd);
     }
 
-    printf("[Writer] Passed result to file '%s' from input fd %d\n", file_path, fd);
+    return exit_code;
 }
 
 void checkArgumentCount(bool arg_condition, const char* arg_name)
@@ -228,52 +304,49 @@ int main(int argc, char** argv)
     checkArgumentCount(argc < 4, "<output_file_1>");
     checkArgumentCount(argc < 5, "<output_file_1>");
 
-    int exit_code = 0;
-    int unhandled_data_fds_1[2] = { -1, -1 };
-    int unhandled_data_fds_2[2] = { -1, -1 };
-    int handled_data_fds_1[2] = { -1, -1 };
-    int handled_data_fds_2[2] = { -1, -1 };
+    const char* unhandled_data_pipe_name_1 = "unhandled_1.fifo";
+    const char* unhandled_data_pipe_name_2 = "unhandled_2.fifo";
+    const char* handled_data_pipe_name_1 = "handled_1.fifo";
+    const char* handled_data_pipe_name_2 = "handled_2.fifo";
 
-    if (pipe(unhandled_data_fds_1) < 0) {
-        printf("[Error] Failed to create unhandled data pipe 1: %s\n", strerror(errno));
+    // If the named pipe file already exists, ignore the error.
+    if (mkfifo(unhandled_data_pipe_name_1, 0666) < 0 && errno != EEXIST) {
+        printf("[Error] Failed to create pipe '%s': %s\n",
+            unhandled_data_pipe_name_1, strerror(errno));
         return 1;
     }
 
-    printf("[Pipe] Created (reader -> data handler) pipe 1: read: %d, write: %d\n",
-        unhandled_data_fds_1[0], unhandled_data_fds_1[1]);
-
-    if (pipe(unhandled_data_fds_2) < 0) {
-        printf("[Error] Failed to create unhandled data pipe 2: %s\n", strerror(errno));
-        exit_code = 1;
-        goto cleanup;
+    if (mkfifo(unhandled_data_pipe_name_2, 0666) < 0 && errno != EEXIST) {
+        printf("[Error] Failed to create pipe '%s': %s\n",
+            unhandled_data_pipe_name_2, strerror(errno));
+        return 1;
     }
-
-    printf("[Pipe] Created (reader -> data handler) pipe 2: read: %d, write: %d\n",
-        unhandled_data_fds_2[0], unhandled_data_fds_2[1]);
-
-    const char* input_file_1 = argv[1];
-    const char* input_file_2 = argv[2];
 
     int fork_result = fork();
     if (fork_result == -1) {
         printf("[Error] Failed to fork for reader process: %s\n", strerror(errno));
-        exit_code = 1;
-        goto cleanup;
+        return 1;
     }
 
     if (fork_result == 0) {
-        // Since fds are copied when forking, we need to manually close them.
-        close(unhandled_data_fds_1[0]);
-        close(unhandled_data_fds_2[0]);
+        return reader(argv[1], argv[2], unhandled_data_pipe_name_1, unhandled_data_pipe_name_2);
+    }
 
-        // In the child process -> read strings and pass them to data handler.
-        reader(input_file_1, unhandled_data_fds_1[1]);
-        reader(input_file_2, unhandled_data_fds_2[1]);
+    int unhandled_data_fd_1;
+    if ((unhandled_data_fd_1 = open(unhandled_data_pipe_name_1, O_RDONLY)) < 0) {
+        printf("[Error] Failed to open pipe '%s': %s\n",
+            unhandled_data_pipe_name_1, strerror(errno));
+        return 1;
+    }
 
-        close(unhandled_data_fds_1[1]);
-        close(unhandled_data_fds_2[1]);
+    int exit_code = 0;
 
-        return 0;
+    int unhandled_data_fd_2;
+    if ((unhandled_data_fd_2 = open(unhandled_data_pipe_name_2, O_RDONLY)) < 0) {
+        printf("[Error] Failed to open pipe '%s': %s\n",
+            unhandled_data_pipe_name_2, strerror(errno));
+        exit_code = 1;
+        goto cleanup;
     }
 
     // Wait until the reader process is done.
@@ -293,26 +366,19 @@ int main(int argc, char** argv)
         goto cleanup;
     }
 
-    closeFile(&unhandled_data_fds_1[1]);
-    closeFile(&unhandled_data_fds_2[1]);
-
-    if (pipe(handled_data_fds_1) < 0) {
-        printf("[Error] Failed to create handled data pipe 1: %s\n", strerror(errno));
+    if (mkfifo(handled_data_pipe_name_1, 0666) < 0 && errno != EEXIST) {
+        printf("[Error] Failed to create pipe '%s': %s\n",
+            handled_data_pipe_name_1, strerror(errno));
         exit_code = 1;
         goto cleanup;
     }
 
-    printf("[Pipe] Created (data handler -> writer) pipe 1: read: %d, write: %d\n",
-        handled_data_fds_1[0], handled_data_fds_1[1]);
-
-    if (pipe(handled_data_fds_2) < 0) {
-        printf("[Error] Failed to create handled data pipe 2: %s\n", strerror(errno));
+    if (mkfifo(handled_data_pipe_name_2, 0666) < 0 && errno != EEXIST) {
+        printf("[Error] Failed to create pipe '%s': %s\n",
+            handled_data_pipe_name_2, strerror(errno));
         exit_code = 1;
         goto cleanup;
     }
-
-    printf("[Pipe] Created (data handler -> writer) pipe 2: read: %d, write: %d\n",
-        handled_data_fds_2[0], handled_data_fds_2[1]);
 
     fork_result = fork();
     if (fork_result == -1) {
@@ -322,19 +388,23 @@ int main(int argc, char** argv)
     }
 
     if (fork_result == 0) {
-        close(handled_data_fds_1[0]);
-        close(handled_data_fds_2[0]);
+        return dataHandler(unhandled_data_fd_1, unhandled_data_fd_2,
+            handled_data_pipe_name_1, handled_data_pipe_name_2);
+    }
 
-        // In the child process -> handle data and pass the results to writer.
-        dataHandler(unhandled_data_fds_1[0], unhandled_data_fds_2[0],
-            handled_data_fds_1[1], handled_data_fds_2[1]);
+    int handled_data_fd_1;
+    if ((handled_data_fd_1 = open(handled_data_pipe_name_1, O_RDONLY)) < 0) {
+        printf("[Error] Failed to open pipe '%s': %s\n",
+            handled_data_pipe_name_1, strerror(errno));
+        exit_code = 1;
+        goto cleanup;
+    }
 
-        close(unhandled_data_fds_1[0]);
-        close(unhandled_data_fds_2[0]);
-        close(handled_data_fds_1[1]);
-        close(handled_data_fds_2[1]);
-
-        return 0;
+    int handled_data_fd_2;
+    if ((handled_data_fd_2 = open(handled_data_pipe_name_2, O_RDONLY)) < 0) {
+        printf("[Writer Error] Failed to open pipe '%s': %s\n", handled_data_pipe_name_1, strerror(errno));
+        exit_code = 1;
+        goto cleanup;
     }
 
     // Wait until the data handler process is done.
@@ -350,13 +420,9 @@ int main(int argc, char** argv)
         goto cleanup;
     }
 
-    closeFile(&unhandled_data_fds_1[0]);
-    closeFile(&unhandled_data_fds_2[0]);
-    closeFile(&handled_data_fds_1[1]);
-    closeFile(&handled_data_fds_2[1]);
-
-    const char* output_file_1 = argv[3];
-    const char* output_file_2 = argv[4];
+    // Close no longer needed fds.
+    closeFile(&unhandled_data_fd_1);
+    closeFile(&unhandled_data_fd_2);
 
     fork_result = fork();
     if (fork_result == -1) {
@@ -367,13 +433,7 @@ int main(int argc, char** argv)
 
     if (fork_result == 0) {
         // In the child process -> read results and write them to the files.
-        writer(output_file_1, handled_data_fds_1[0]);
-        writer(output_file_2, handled_data_fds_2[0]);
-
-        close(handled_data_fds_1[0]);
-        close(handled_data_fds_2[0]);
-
-        return 0;
+        return writeString(argv[3], handled_data_fd_1) || writeString(argv[4], handled_data_fd_2);
     }
 
     // Wait until the writer process is done.
@@ -390,14 +450,10 @@ int main(int argc, char** argv)
     }
 
 cleanup:
-    closeFile(&unhandled_data_fds_1[0]);
-    closeFile(&unhandled_data_fds_1[1]);
-    closeFile(&unhandled_data_fds_2[0]);
-    closeFile(&unhandled_data_fds_2[1]);
-    closeFile(&handled_data_fds_1[0]);
-    closeFile(&handled_data_fds_1[1]);
-    closeFile(&handled_data_fds_2[0]);
-    closeFile(&handled_data_fds_2[1]);
+    closeFile(&unhandled_data_fd_1);
+    closeFile(&unhandled_data_fd_2);
+    closeFile(&handled_data_fd_1);
+    closeFile(&handled_data_fd_2);
 
     if (exit_code == 0) {
         printf("Done!\n");
