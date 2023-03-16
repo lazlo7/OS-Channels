@@ -62,19 +62,27 @@ cleanup:
         written_bytes, file_path, fd);
 }
 
+typedef enum {
+    STR_DIFF_UNKNOWN,
+    STR_DIFF_INCLUDED,
+    STR_DIFF_EXCLUDED
+} string_difference_t;
+
 // Computes a string difference between including and excluding strings.
 // Puts the result in result buffer, which should be of at least size 256.
 void updateStringDifference(
     const char* including, size_t including_length,
     const char* excluding, size_t excluding_length,
-    bool* result)
+    string_difference_t* result)
 {
     for (size_t i = 0; i < including_length; ++i) {
-        result[(unsigned char)including[i]] = true;
+        if (result[(unsigned char)including[i]] != STR_DIFF_EXCLUDED) {
+            result[(unsigned char)including[i]] = STR_DIFF_INCLUDED;
+        }
     }
 
     for (size_t i = 0; i < excluding_length; ++i) {
-        result[(unsigned char)excluding[i]] = false;
+        result[(unsigned char)excluding[i]] = STR_DIFF_EXCLUDED;
     }
 }
 
@@ -89,12 +97,12 @@ void dataHandler(int input_fd_1, int input_fd_2, int output_fd_1, int output_fd_
     static char buffer_2[BUFFER_SIZE];
 
     // Just to be sure, we'll be allocating an array of size 256.
-    static bool string_difference_1[256];
-    static bool string_difference_2[256];
+    static string_difference_t string_difference_1[256];
+    static string_difference_t string_difference_2[256];
 
     // Clearing potential leftover data.
-    memset(string_difference_1, false, sizeof(string_difference_1));
-    memset(string_difference_2, false, sizeof(string_difference_2));
+    memset(string_difference_1, STR_DIFF_UNKNOWN, sizeof(string_difference_1));
+    memset(string_difference_2, STR_DIFF_UNKNOWN, sizeof(string_difference_2));
 
     ssize_t read_result_1 = 0;
     ssize_t read_result_2 = 0;
@@ -123,14 +131,14 @@ void dataHandler(int input_fd_1, int input_fd_2, int output_fd_1, int output_fd_
 
     size_t result_1_length = 0;
     for (int i = 0; i < 128; ++i) {
-        if (string_difference_1[i]) {
+        if (string_difference_1[i] == STR_DIFF_INCLUDED) {
             result_1[result_1_length++] = (char)i;
         }
     }
 
     size_t result_2_length = 0;
     for (int i = 0; i < 128; ++i) {
-        if (string_difference_2[i]) {
+        if (string_difference_2[i] == STR_DIFF_INCLUDED) {
             result_2[result_2_length++] = (char)i;
         }
     }
