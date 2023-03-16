@@ -23,8 +23,5 @@ run_tests_5: mark5
 	./mark5 test/equal/in1 test/equal/in2 test/equal/out1 test/equal/out2
 	./mark5 test/lorem/in1 test/lorem/in2 test/lorem/out1 test/lorem/out2
 
-all: mark4
-.DEFAULT_GOAL := all
-
 clean:
 	rm -f mark4
