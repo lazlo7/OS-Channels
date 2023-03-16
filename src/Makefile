@@ -24,4 +24,4 @@ run_tests_5: mark5
 	./mark5 test/lorem/in1 test/lorem/in2 test/lorem/out1 test/lorem/out2
 
 clean:
-	rm -f mark4 mark5
+	rm -f mark4 mark5 unhandled_1.fifo unhandled_2.fifo handled_1.fifo handled_2.fifo
