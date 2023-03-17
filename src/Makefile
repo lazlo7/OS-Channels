@@ -8,20 +8,20 @@ mark5: 5/prog.c
 	$(CC) $(CFLAGS) -o mark5 5/prog.c
 
 run_tests_4: mark4
-	./mark4 test/1/in1 test/1/in2 test/1/out1 test/1/out2
-	./mark4 test/2/in1 test/2/in2 test/2/out1 test/2/out2
-	./mark4 test/big/in1 test/big/in2 test/big/out1 test/big/out2
-	./mark4 test/distinct/in1 test/distinct/in2 test/distinct/out1 test/distinct/out2
-	./mark4 test/equal/in1 test/equal/in2 test/equal/out1 test/equal/out2
-	./mark4 test/lorem/in1 test/lorem/in2 test/lorem/out1 test/lorem/out2
+	./mark4 test/in/1/1 test/in/1/2 test/out/mark4/1/1 test/out/mark4/1/2
+	./mark4 test/in/2/1 test/in/2/2 test/out/mark4/2/1 test/out/mark4/2/2
+	./mark4 test/in/big/1 test/in/big/2 test/out/mark4/big/1 test/out/mark4/big/2
+	./mark4 test/in/distinct/1 test/in/distinct/2 test/out/mark4/distinct/1 test/out/mark4/distinct/2
+	./mark4 test/in/equal/1 test/in/equal/2 test/out/mark4/equal/1 test/out/mark4/equal/2
+	./mark4 test/in/lorem/1 test/in/lorem/2 test/out/mark4/lorem/1 test/out/mark4/lorem/2
 
 run_tests_5: mark5
-	./mark5 test/1/in1 test/1/in2 test/1/out1 test/1/out2
-	./mark5 test/2/in1 test/2/in2 test/2/out1 test/2/out2
-	./mark5 test/big/in1 test/big/in2 test/big/out1 test/big/out2
-	./mark5 test/distinct/in1 test/distinct/in2 test/distinct/out1 test/distinct/out2
-	./mark5 test/equal/in1 test/equal/in2 test/equal/out1 test/equal/out2
-	./mark5 test/lorem/in1 test/lorem/in2 test/lorem/out1 test/lorem/out2
+	./mark5 test/in/1/1 test/in/1/2 test/out/mark5/1/1 test/out/mark5/1/2
+	./mark5 test/in/2/1 test/in/2/2 test/out/mark5/2/1 test/out/mark5/2/2
+	./mark5 test/in/big/1 test/in/big/2 test/out/mark5/big/1 test/out/mark5/big/2
+	./mark5 test/in/distinct/1 test/in/distinct/2 test/out/mark5/distinct/1 test/out/mark5/distinct/2
+	./mark5 test/in/equal/1 test/in/equal/2 test/out/mark5/equal/1 test/out/mark5/equal/2
+	./mark5 test/in/lorem/1 test/in/lorem/2 test/out/mark5/lorem/1 test/out/mark5/lorem/2
 
 clean:
 	rm -f mark4 mark5 unhandled_1.fifo unhandled_2.fifo handled_1.fifo handled_2.fifo
