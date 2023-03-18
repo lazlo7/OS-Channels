@@ -310,13 +310,13 @@ int main(int argc, char** argv)
 
     // If the named pipe file already exists, ignore the error.
     if (mkfifo(unhandled_data_pipe_name_1, 0666) < 0 && errno != EEXIST) {
-        printf("[Error] Failed to create pipe '%s': %s\n",
+        printf("[Error] Failed to create FIFO '%s': %s\n",
             unhandled_data_pipe_name_1, strerror(errno));
         return 1;
     }
 
     if (mkfifo(unhandled_data_pipe_name_2, 0666) < 0 && errno != EEXIST) {
-        printf("[Error] Failed to create pipe '%s': %s\n",
+        printf("[Error] Failed to create FIFO '%s': %s\n",
             unhandled_data_pipe_name_2, strerror(errno));
         return 1;
     }
@@ -333,7 +333,7 @@ int main(int argc, char** argv)
 
     int unhandled_data_fd_1;
     if ((unhandled_data_fd_1 = open(unhandled_data_pipe_name_1, O_RDONLY)) < 0) {
-        printf("[Error] Failed to open pipe '%s': %s\n",
+        printf("[Error] Failed to open FIFO '%s': %s\n",
             unhandled_data_pipe_name_1, strerror(errno));
         return 1;
     }
@@ -342,7 +342,7 @@ int main(int argc, char** argv)
 
     int unhandled_data_fd_2;
     if ((unhandled_data_fd_2 = open(unhandled_data_pipe_name_2, O_RDONLY)) < 0) {
-        printf("[Error] Failed to open pipe '%s': %s\n",
+        printf("[Error] Failed to open FIFO '%s': %s\n",
             unhandled_data_pipe_name_2, strerror(errno));
         exit_code = 1;
         goto cleanup;
@@ -366,14 +366,14 @@ int main(int argc, char** argv)
     }
 
     if (mkfifo(handled_data_pipe_name_1, 0666) < 0 && errno != EEXIST) {
-        printf("[Error] Failed to create pipe '%s': %s\n",
+        printf("[Error] Failed to create FIFO '%s': %s\n",
             handled_data_pipe_name_1, strerror(errno));
         exit_code = 1;
         goto cleanup;
     }
 
     if (mkfifo(handled_data_pipe_name_2, 0666) < 0 && errno != EEXIST) {
-        printf("[Error] Failed to create pipe '%s': %s\n",
+        printf("[Error] Failed to create FIFO '%s': %s\n",
             handled_data_pipe_name_2, strerror(errno));
         exit_code = 1;
         goto cleanup;
@@ -393,7 +393,7 @@ int main(int argc, char** argv)
 
     int handled_data_fd_1;
     if ((handled_data_fd_1 = open(handled_data_pipe_name_1, O_RDONLY)) < 0) {
-        printf("[Error] Failed to open pipe '%s': %s\n",
+        printf("[Error] Failed to open FIFO '%s': %s\n",
             handled_data_pipe_name_1, strerror(errno));
         exit_code = 1;
         goto cleanup;
@@ -401,7 +401,7 @@ int main(int argc, char** argv)
 
     int handled_data_fd_2;
     if ((handled_data_fd_2 = open(handled_data_pipe_name_2, O_RDONLY)) < 0) {
-        printf("[Writer Error] Failed to open pipe '%s': %s\n", handled_data_pipe_name_1, strerror(errno));
+        printf("[Writer Error] Failed to open FIFO '%s': %s\n", handled_data_pipe_name_1, strerror(errno));
         exit_code = 1;
         goto cleanup;
     }
