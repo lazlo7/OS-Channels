@@ -325,6 +325,10 @@ int readerWriter(
     }
 
     int input_fd_1 = -1;
+    int input_fd_2 = -1;
+    int output_fd_1 = -1;
+    int output_fd_2 = -1;
+
     if ((input_fd_1 = open(unhandled_data_pipe_name_1, O_WRONLY)) < 0) {
         printf("[Reader-Writer Error] Failed to open input pipe '%s': %s\n",
             unhandled_data_pipe_name_1, strerror(errno));
@@ -335,7 +339,6 @@ int readerWriter(
     printf("[Reader-Writer] Opened (reader-writer -> data handler) pipe '%s' with fd: %d\n",
         unhandled_data_pipe_name_1, input_fd_1);
 
-    int input_fd_2 = -1;
     if ((input_fd_2 = open(unhandled_data_pipe_name_2, O_WRONLY)) < 0) {
         printf("[Reader-Writer Error] Failed to open input pipe '%s': %s\n",
             unhandled_data_pipe_name_2, strerror(errno));
@@ -350,7 +353,6 @@ int readerWriter(
     exit_code = readString(input_file_1, input_fd_1)
         || readString(input_file_2, input_fd_2);
 
-    int output_fd_1 = -1;
     if ((output_fd_1 = open(handled_data_pipe_name_1, O_RDONLY)) < 0) {
         printf("[Reader-Writer Error] Failed to open output pipe '%s': %s\n",
             handled_data_pipe_name_1, strerror(errno));
@@ -361,7 +363,6 @@ int readerWriter(
     printf("[Reader-Writer] Opened (data handler -> reader-writer) pipe '%s' with fd: %d\n",
         handled_data_pipe_name_1, output_fd_1);
 
-    int output_fd_2 = -1;
     if ((output_fd_2 = open(handled_data_pipe_name_2, O_RDONLY)) < 0) {
         printf("[Reader-Writer Error] Failed to open output pipe '%s': %s\n",
             handled_data_pipe_name_2, strerror(errno));
