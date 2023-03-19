@@ -353,6 +353,11 @@ int readerWriter(
     exit_code = readString(input_file_1, input_fd_1)
         || readString(input_file_2, input_fd_2);
 
+    if (exit_code != 0) {
+        printf("[Reader-Writer] Failed to read strings, exiting...");
+        goto cleanup;
+    }
+
     if ((output_fd_1 = open(handled_data_pipe_name_1, O_RDONLY)) < 0) {
         printf("[Reader-Writer Error] Failed to open output pipe '%s': %s\n",
             handled_data_pipe_name_1, strerror(errno));
