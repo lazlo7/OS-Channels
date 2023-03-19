@@ -354,7 +354,7 @@ int readerWriter(
         || readString(input_file_2, input_fd_2);
 
     if (exit_code != 0) {
-        printf("[Reader-Writer] Failed to read strings, exiting...");
+        printf("[Reader-Writer Error] Failed to read strings, exiting...");
         goto cleanup;
     }
 
