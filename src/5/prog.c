@@ -331,7 +331,7 @@ int main(int argc, char** argv)
         return reader(argv[1], argv[2], unhandled_data_pipe_name_1, unhandled_data_pipe_name_2);
     }
 
-    int unhandled_data_fd_1;
+    int unhandled_data_fd_1 = -1;
     if ((unhandled_data_fd_1 = open(unhandled_data_pipe_name_1, O_RDONLY)) < 0) {
         printf("[Error] Failed to open FIFO '%s': %s\n",
             unhandled_data_pipe_name_1, strerror(errno));
@@ -340,7 +340,7 @@ int main(int argc, char** argv)
 
     int exit_code = 0;
 
-    int unhandled_data_fd_2;
+    int unhandled_data_fd_2 = -1;
     if ((unhandled_data_fd_2 = open(unhandled_data_pipe_name_2, O_RDONLY)) < 0) {
         printf("[Error] Failed to open FIFO '%s': %s\n",
             unhandled_data_pipe_name_2, strerror(errno));
@@ -391,7 +391,7 @@ int main(int argc, char** argv)
             handled_data_pipe_name_1, handled_data_pipe_name_2);
     }
 
-    int handled_data_fd_1;
+    int handled_data_fd_1 = -1;
     if ((handled_data_fd_1 = open(handled_data_pipe_name_1, O_RDONLY)) < 0) {
         printf("[Error] Failed to open FIFO '%s': %s\n",
             handled_data_pipe_name_1, strerror(errno));
@@ -399,7 +399,7 @@ int main(int argc, char** argv)
         goto cleanup;
     }
 
-    int handled_data_fd_2;
+    int handled_data_fd_2 = -1;
     if ((handled_data_fd_2 = open(handled_data_pipe_name_2, O_RDONLY)) < 0) {
         printf("[Writer Error] Failed to open FIFO '%s': %s\n", handled_data_pipe_name_1, strerror(errno));
         exit_code = 1;
