@@ -29,7 +29,7 @@ void updateStringDifference(
     }
 }
 
-int handleStings(int input_fd_1, int input_fd_2, int output_fd_1, int output_fd_2)
+int handleStrings(int input_fd_1, int input_fd_2, int output_fd_1, int output_fd_2)
 {
     printf("[Handler] Started with input fds %d and %d\n", input_fd_1, input_fd_2);
 
@@ -159,7 +159,7 @@ int main(int argc, char** argv)
     printf("[Data Handler] Opened (reader-writer -> data handler) pipe '%s' with fd: %d\n",
         OUTPUT_FIFO_NAME_2, output_fd_2);
 
-    exit_code = handleStings(input_fd_1, input_fd_2, output_fd_1, output_fd_2);
+    exit_code = handleStrings(input_fd_1, input_fd_2, output_fd_1, output_fd_2);
 
     if (exit_code != 0) {
         printf("[Data Handler Error] Failed to handle strings, exiting...");
