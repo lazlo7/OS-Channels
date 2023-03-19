@@ -29,10 +29,7 @@ void updateStringDifference(
     }
 }
 
-int handleStrings(
-    int input_fd_1, int input_fd_2,
-    char* result_1, char* result_2,
-    size_t* result_1_length, size_t* result_2_length)
+int handleStrings(int input_fd_1, int input_fd_2, int output_fd_1, int output_fd_2)
 {
     printf("[Handler] Started with input fds %d and %d\n", input_fd_1, input_fd_2);
 
@@ -69,19 +66,35 @@ int handleStrings(
     } while (read_result_1 == BUFFER_SIZE || read_result_2 == BUFFER_SIZE);
 
     // Compiling string results.
-    *result_1_length = 0;
+    static char result_1[128];
+    static char result_2[128];
+
+    size_t result_1_length = 0;
     for (int i = 0; i < 128; ++i) {
         if (string_difference_1[i] == STR_DIFF_INCLUDED) {
-            result_1[(*result_1_length)++] = (char)i;
+            result_1[result_1_length++] = (char)i;
         }
     }
 
-    *result_2_length = 0;
+    size_t result_2_length = 0;
     for (int i = 0; i < 128; ++i) {
         if (string_difference_2[i] == STR_DIFF_INCLUDED) {
-            result_2[(*result_2_length)++] = (char)i;
+            result_2[result_2_length++] = (char)i;
         }
     }
+
+    // Writing results.
+    if (write(output_fd_1, result_1, result_1_length) < 0) {
+        printf("[Handler Error] Failed to write result to pipe 1: %s\n", strerror(errno));
+        return 1;
+    }
+
+    if (write(output_fd_2, result_2, result_2_length) < 0) {
+        printf("[Handler Error] Failed to write result to pipe 2: %s\n", strerror(errno));
+        return 1;
+    }
+
+    printf("[Handler] Passed results to output fds %d and %d\n", output_fd_1, output_fd_2);
 
     return 0;
 }
@@ -124,20 +137,6 @@ int main(int argc, char** argv)
     printf("[Data Handler] Opened (reader-writer -> data handler) pipe '%s' with fd: %d\n",
         INPUT_FIFO_NAME_2, input_fd_2);
 
-    char result_1[256];
-    char result_2[256];
-    size_t result_1_length = 0;
-    size_t result_2_length = 0;
-
-    exit_code = handleStrings(input_fd_1, input_fd_2,
-        result_1, result_2,
-        &result_1_length, &result_2_length);
-
-    if (exit_code != 0) {
-        printf("[Data Handler Error] Failed to handle strings, exiting...");
-        goto cleanup;
-    }
-
     int output_fd_1 = -1;
     if ((output_fd_1 = open(OUTPUT_FIFO_NAME_1, O_WRONLY)) < 0) {
         printf("[Data Handler Error] Failed to open output pipe '%s': %s\n",
@@ -160,18 +159,12 @@ int main(int argc, char** argv)
     printf("[Data Handler] Opened (reader-writer -> data handler) pipe '%s' with fd: %d\n",
         OUTPUT_FIFO_NAME_2, output_fd_2);
 
-    // Writing results.
-    if (write(output_fd_1, result_1, result_1_length) < 0) {
-        printf("[Handler Error] Failed to write result to pipe 1: %s\n", strerror(errno));
-        return 1;
-    }
+    exit_code = handleStrings(input_fd_1, input_fd_2, output_fd_1, output_fd_2);
 
-    if (write(output_fd_2, result_2, result_2_length) < 0) {
-        printf("[Handler Error] Failed to write result to pipe 2: %s\n", strerror(errno));
-        return 1;
+    if (exit_code != 0) {
+        printf("[Data Handler Error] Failed to handle strings, exiting...");
+        goto cleanup;
     }
-
-    printf("[Handler] Passed results to output fds %d and %d\n", output_fd_1, output_fd_2);
 
 cleanup:
     closeFile(&input_fd_1);
