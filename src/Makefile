@@ -10,6 +10,9 @@ mark5: 5/prog.c
 mark6: 6/prog.c
 	$(CC) $(CFLAGS) -o mark6 6/prog.c
 
+mark7: 7/prog.c
+	$(CC) $(CFLAGS) -o mark7 7/prog.c
+
 run_tests_4: mark4
 	./mark4 test/in/1/1 test/in/1/2 test/out/mark4/1/1 test/out/mark4/1/2
 	./mark4 test/in/2/1 test/in/2/2 test/out/mark4/2/1 test/out/mark4/2/2
@@ -34,5 +37,13 @@ run_tests_6: mark6
 	./mark6 test/in/equal/1 test/in/equal/2 test/out/mark6/equal/1 test/out/mark6/equal/2
 	./mark6 test/in/lorem/1 test/in/lorem/2 test/out/mark6/lorem/1 test/out/mark6/lorem/2
 
+run_tests_7: mark7
+	./mark7 test/in/1/1 test/in/1/2 test/out/mark7/1/1 test/out/mark7/1/2
+	./mark7 test/in/2/1 test/in/2/2 test/out/mark7/2/1 test/out/mark7/2/2
+	./mark7 test/in/big/1 test/in/big/2 test/out/mark7/big/1 test/out/mark7/big/2
+	./mark7 test/in/distinct/1 test/in/distinct/2 test/out/mark7/distinct/1 test/out/mark7/distinct/2
+	./mark7 test/in/equal/1 test/in/equal/2 test/out/mark7/equal/1 test/out/mark7/equal/2
+	./mark7 test/in/lorem/1 test/in/lorem/2 test/out/mark7/lorem/1 test/out/mark7/lorem/2
+
 clean:
-	rm -f mark4 mark5 mark6 unhandled_1.fifo unhandled_2.fifo handled_1.fifo handled_2.fifo
+	rm -f mark4 mark5 mark6 mark7 unhandled_1.fifo unhandled_2.fifo handled_1.fifo handled_2.fifo
