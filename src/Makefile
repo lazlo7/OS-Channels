@@ -13,6 +13,10 @@ mark6: 6/prog.c
 mark7: 7/prog.c
 	$(CC) $(CFLAGS) -o mark7 7/prog.c
 
+mark8: 8/reader-writer.c 8/data-handler.c
+	$(CC) $(CFLAGS) -o mark8-rw 8/reader-writer.c
+	$(CC) $(CFLAGS) -o mark8-h 8/data-handler.c
+
 run_tests_4: mark4
 	./mark4 test/in/1/1 test/in/1/2 test/out/mark4/1/1 test/out/mark4/1/2
 	./mark4 test/in/2/1 test/in/2/2 test/out/mark4/2/1 test/out/mark4/2/2
@@ -46,4 +50,4 @@ run_tests_7: mark7
 	./mark7 test/in/lorem/1 test/in/lorem/2 test/out/mark7/lorem/1 test/out/mark7/lorem/2
 
 clean:
-	rm -f mark4 mark5 mark6 mark7 unhandled_1.fifo unhandled_2.fifo handled_1.fifo handled_2.fifo
+	rm -f mark4 mark5 mark6 mark7 mark8-rw mark8-h unhandled_1.fifo unhandled_2.fifo handled_1.fifo handled_2.fifo
