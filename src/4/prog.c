@@ -226,7 +226,7 @@ int main(int argc, char** argv)
     checkArgumentCount(argc < 2, "<input_file_1>");
     checkArgumentCount(argc < 3, "<input_file_2>");
     checkArgumentCount(argc < 4, "<output_file_1>");
-    checkArgumentCount(argc < 5, "<output_file_1>");
+    checkArgumentCount(argc < 5, "<output_file_2>");
 
     int exit_code = 0;
     int unhandled_data_fds_1[2] = { -1, -1 };

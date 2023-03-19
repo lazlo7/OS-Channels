@@ -301,7 +301,7 @@ int main(int argc, char** argv)
     checkArgumentCount(argc < 2, "<input_file_1>");
     checkArgumentCount(argc < 3, "<input_file_2>");
     checkArgumentCount(argc < 4, "<output_file_1>");
-    checkArgumentCount(argc < 5, "<output_file_1>");
+    checkArgumentCount(argc < 5, "<output_file_2>");
 
     const char* unhandled_data_pipe_name_1 = "unhandled_1.fifo";
     const char* unhandled_data_pipe_name_2 = "unhandled_2.fifo";
